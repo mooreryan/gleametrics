@@ -35,7 +35,7 @@ fn init(downloads_json_string: String) -> #(Model, effect.Effect(Msg)) {
   #(
     Model(
       hex_packages_snapshot: hex_packages_snapshot,
-      current_plot: TotalDownloadsPlot,
+      current_plot: RecentDownloadsPlot,
     ),
     effect.from(fn(dispatch) { dispatch(UserLoadedPage) }),
   )
@@ -50,6 +50,7 @@ fn parse_download_json(json_string: String) -> shared.HexPackagesSnapshot {
 }
 
 type Plot {
+  RecentDownloadsPlot
   TotalDownloadsPlot
   LifetimeDownloadRatePlot
   PackageAgePlot
@@ -57,6 +58,7 @@ type Plot {
 
 fn plot_title(plot: Plot) -> String {
   case plot {
+    RecentDownloadsPlot -> "Recent Downloads"
     TotalDownloadsPlot -> "Total Downloads"
     LifetimeDownloadRatePlot -> "Lifetime Download Rate"
     PackageAgePlot -> "Package Age"
@@ -65,6 +67,7 @@ fn plot_title(plot: Plot) -> String {
 
 fn plot_axis_title(plot: Plot) -> String {
   case plot {
+    RecentDownloadsPlot -> "Recent Downloads"
     TotalDownloadsPlot -> "Total Downloads"
     LifetimeDownloadRatePlot -> "Lifetime Download Rate (per day)"
     PackageAgePlot -> "Package Age (days)"
@@ -73,6 +76,7 @@ fn plot_axis_title(plot: Plot) -> String {
 
 fn plot_attribute_value(plot: Plot) -> String {
   case plot {
+    RecentDownloadsPlot -> "recent-downloads"
     TotalDownloadsPlot -> "total-downloads"
     LifetimeDownloadRatePlot -> "lifetime-download-rate"
     PackageAgePlot -> "package-age"
@@ -81,6 +85,7 @@ fn plot_attribute_value(plot: Plot) -> String {
 
 fn plot_from_attribute_value(attribute_value: String) -> Result(Plot, String) {
   case attribute_value {
+    "recent-downloads" -> Ok(RecentDownloadsPlot)
     "total-downloads" -> Ok(TotalDownloadsPlot)
     "lifetime-download-rate" -> Ok(LifetimeDownloadRatePlot)
     "package-age" -> Ok(PackageAgePlot)
@@ -380,12 +385,82 @@ fn total_downloads_plot(
           "x",
           json.object([
             // This must match with the field name in the type
-            #("field", json.string("downloads.recent")),
+            #("field", json.string("downloads.all")),
             #("type", json.string("quantitative")),
             #(
               "axis",
               json.object([
                 #("title", json.string(plot_axis_title(TotalDownloadsPlot))),
+              ]),
+            ),
+          ]),
+        ),
+      ]),
+    ),
+  ])
+}
+
+fn recent_downloads_plot(
+  entries: List(shared.HexPackage),
+  title title: String,
+) -> json.Json {
+  json.object([
+    #("$schema", json.string("https://vega.github.io/schema/vega-lite/v6.json")),
+    #("title", json.string(title)),
+    #("description", json.string("A lovely chart of package downloads")),
+    #("width", json.string("container")),
+    #("height", json.string("container")),
+    #(
+      "config",
+      json.object([
+        #(
+          "title",
+          json.object([
+            #("fontSize", json.int(20)),
+          ]),
+        ),
+        #(
+          "axis",
+          json.object([
+            #("titleFontSize", json.int(16)),
+            #("labelFontSize", json.int(14)),
+          ]),
+        ),
+      ]),
+    ),
+    #(
+      "data",
+      json.object([
+        #("values", json.array(from: entries, of: shared.hex_package_to_json)),
+      ]),
+    ),
+    #(
+      "mark",
+      json.object([#("type", json.string("bar")), #("tooltip", json.bool(True))]),
+    ),
+    #(
+      "encoding",
+      json.object([
+        #(
+          "y",
+          json.object([
+            // This must match with the field name in the type
+            #("field", json.string("name")),
+            #("type", json.string("nominal")),
+            #("sort", json.string("-x")),
+            #("axis", json.object([#("title", json.bool(False))])),
+          ]),
+        ),
+        #(
+          "x",
+          json.object([
+            // This must match with the field name in the type
+            #("field", json.string("downloads.recent")),
+            #("type", json.string("quantitative")),
+            #(
+              "axis",
+              json.object([
+                #("title", json.string(plot_axis_title(RecentDownloadsPlot))),
               ]),
             ),
           ]),
@@ -406,7 +481,7 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
   case msg {
     UserLoadedPage -> #(
       model,
-      embed_total_downloads_plot(model.hex_packages_snapshot.packages),
+      embed_recent_downloads_plot(model.hex_packages_snapshot.packages),
     )
 
     UserChangedPlot(plot_attribute_value) -> {
@@ -416,6 +491,9 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
       let model = Model(..model, current_plot: plot)
 
       let effect = case plot {
+        RecentDownloadsPlot ->
+          embed_recent_downloads_plot(model.hex_packages_snapshot.packages)
+
         TotalDownloadsPlot ->
           embed_total_downloads_plot(model.hex_packages_snapshot.packages)
 
@@ -431,6 +509,16 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
       #(model, effect)
     }
   }
+}
+
+fn embed_recent_downloads_plot(
+  hex_packages: List(shared.HexPackage),
+) -> effect.Effect(a) {
+  effect.from(fn(_) {
+    hex_packages
+    |> recent_downloads_plot(title: plot_title(RecentDownloadsPlot))
+    |> embed_plot
+  })
 }
 
 fn embed_total_downloads_plot(
@@ -582,6 +670,10 @@ fn view_plot(current_plot: Plot) -> Element(Msg) {
             event.on_input(UserChangedPlot),
           ],
           [
+            plot_html_option(
+              RecentDownloadsPlot,
+              currently_selected_plot: current_plot,
+            ),
             plot_html_option(
               TotalDownloadsPlot,
               currently_selected_plot: current_plot,
