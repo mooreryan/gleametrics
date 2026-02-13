@@ -1,12 +1,14 @@
 import gleam/int
+import gleam/json
 import lustre
 import lustre/attribute
+import lustre/effect
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
 
 pub fn main() {
-  let app = lustre.simple(init, update, view)
+  let app = lustre.application(init, update, view)
   let assert Ok(_) = lustre.start(app, "#app", Nil)
 
   Nil
@@ -14,42 +16,100 @@ pub fn main() {
 
 // Model ---------------------------------------------------------------------
 
-type Model =
-  Int
+type Model {
+  Model(package_downloads: List(Package))
+}
 
-fn init(_) -> Model {
-  0
+fn init(_) -> #(Model, effect.Effect(Msg)) {
+  #(
+    Model(package_downloads: [
+      Package(name: "gleam_stdlib", downloads: 1_079_600),
+      Package(name: "gleam_erlang", downloads: 527_107),
+      Package(name: "gleeunit", downloads: 746_727),
+      Package(name: "gleam_otp", downloads: 405_715),
+    ]),
+    effect.from(fn(dispatch) { dispatch(UserLoadedPage) }),
+  )
+}
+
+type Package {
+  Package(name: String, downloads: Int)
+}
+
+fn package_downloads_to_json(package_downloads: Package) -> json.Json {
+  let Package(name:, downloads:) = package_downloads
+  json.object([
+    #("name", json.string(name)),
+    #("downloads", json.int(downloads)),
+  ])
+}
+
+fn package_downloads_plot(entries: List(Package)) -> json.Json {
+  json.object([
+    #("$schema", json.string("https://vega.github.io/schema/vega-lite/v6.json")),
+    #("description", json.string("A lovely chart of package downloads")),
+    #(
+      "data",
+      json.object([
+        #("values", json.array(from: entries, of: package_downloads_to_json)),
+      ]),
+    ),
+    #("mark", json.string("bar")),
+    #(
+      "encoding",
+      json.object([
+        #(
+          "y",
+          json.object([
+            // This must match with the field name in the type
+            #("field", json.string("name")),
+            #("type", json.string("nominal")),
+            #("sort", json.string("-x")),
+          ]),
+        ),
+        #(
+          "x",
+          json.object([
+            // This must match with the field name in the type
+            #("field", json.string("downloads")),
+            #("type", json.string("quantitative")),
+          ]),
+        ),
+      ]),
+    ),
+  ])
 }
 
 // Update --------------------------------------------------------------------
 
 type Msg {
-  UserClickedIncrement
-  UserClickedDecrement
+  UserLoadedPage
 }
 
-fn update(model: Model, msg: Msg) -> Model {
+fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
   case msg {
-    UserClickedIncrement -> model + 1
-    UserClickedDecrement -> model - 1
+    UserLoadedPage -> #(
+      model,
+      effect.from(fn(_) {
+        model.package_downloads
+        |> package_downloads_plot
+        |> embed_plot
+      }),
+    )
   }
+}
+
+@external(javascript, "./ui_ffi.mjs", "vega_embed")
+fn vega_embed(id: String, vega_lite_spec: json.Json) -> Nil
+
+fn embed_plot(vega_lite_spec: json.Json) -> Nil {
+  vega_embed("#plot", vega_lite_spec)
 }
 
 // View ----------------------------------------------------------------------
 
-fn view(model: Model) -> Element(Msg) {
-  let count = int.to_string(model)
-
+fn view(_model: Model) -> Element(Msg) {
   html.div([], [
-    html.button([attribute.class("btn"), event.on_click(UserClickedDecrement)], [
-      html.text("-"),
-    ]),
-    html.p([attribute.class("text-2xl")], [
-      html.text("Count: "),
-      html.text(count),
-    ]),
-    html.button([attribute.class("btn"), event.on_click(UserClickedIncrement)], [
-      html.text("+"),
-    ]),
+    html.div([attribute.id("plot")], []),
   ])
 }
