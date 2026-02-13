@@ -126,7 +126,9 @@ fn lifetime_download_rate_plot_point(package: shared.HexPackageOutput) {
   // For very recent packages, this age_in_days may be weird, so set it to 1.
   let age_in_days = float.max(1.0, age_in_days)
 
-  let downloads_per_day = int.to_float(package.downloads.all) /. age_in_days
+  let downloads_per_day =
+    { int.to_float(package.downloads.all) /. age_in_days }
+    |> float.to_precision(2)
 
   LifetimeDownloadRate(
     package_name: package.name,
@@ -174,7 +176,10 @@ fn lifetime_download_rate_plot(
         ),
       ]),
     ),
-    #("mark", json.string("bar")),
+    #(
+      "mark",
+      json.object([#("type", json.string("bar")), #("tooltip", json.bool(True))]),
+    ),
     #(
       "encoding",
       json.object([
@@ -247,7 +252,10 @@ fn total_downloads_plot(
         ),
       ]),
     ),
-    #("mark", json.string("bar")),
+    #(
+      "mark",
+      json.object([#("type", json.string("bar")), #("tooltip", json.bool(True))]),
+    ),
     #(
       "encoding",
       json.object([
@@ -339,7 +347,6 @@ fn embed_plot(vega_lite_spec: json.Json) -> Nil {
 fn view(model: Model) -> Element(Msg) {
   html.div([], [
     html.h1([attribute.class("text-2xl pb-2")], [html.text("Gleametrics")]),
-    html.h2([attribute.class("text-xl pb-2")], [html.text("Package Downloads")]),
     html.div([attribute.class("pb-2")], [
       html.fieldset([attribute.class("fieldset")], [
         html.label([attribute.for("plot-select"), attribute.class("label")], [

@@ -23,3 +23,8 @@ svg g.mark-rule.role-axis-domain line,
 svg path.background {
     stroke: color-mix(in srgb, var(--color-base-content), gray 50%);
 }
+
+#vg-tooltip-element {
+    background-color: var(--color-base-300);
+    color: var(--color-base-content);
+}
