@@ -1,5 +1,6 @@
 import gleam/int
 import lustre
+import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
 import lustre/event
@@ -11,6 +12,8 @@ pub fn main() {
   Nil
 }
 
+// Model ---------------------------------------------------------------------
+
 type Model =
   Int
 
@@ -18,7 +21,7 @@ fn init(_) -> Model {
   0
 }
 
-// UPDATE ----------------------------------------------------------------------
+// Update --------------------------------------------------------------------
 
 type Msg {
   UserClickedIncrement
@@ -32,14 +35,21 @@ fn update(model: Model, msg: Msg) -> Model {
   }
 }
 
-// VIEW ------------------------------------------------------------------------
+// View ----------------------------------------------------------------------
 
 fn view(model: Model) -> Element(Msg) {
   let count = int.to_string(model)
 
   html.div([], [
-    html.button([event.on_click(UserClickedDecrement)], [html.text("-")]),
-    html.p([], [html.text("Count: "), html.text(count)]),
-    html.button([event.on_click(UserClickedIncrement)], [html.text("+")]),
+    html.button([attribute.class("btn"), event.on_click(UserClickedDecrement)], [
+      html.text("-"),
+    ]),
+    html.p([attribute.class("text-2xl")], [
+      html.text("Count: "),
+      html.text(count),
+    ]),
+    html.button([attribute.class("btn"), event.on_click(UserClickedIncrement)], [
+      html.text("+"),
+    ]),
   ])
 }
