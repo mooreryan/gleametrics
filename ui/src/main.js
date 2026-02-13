@@ -1,4 +1,6 @@
 import "./style.css";
 import { main } from "@gleam/ui.mjs";
 
-main();
+import downloadsJsonString from "../data/downloads.json?raw";
+
+main(downloadsJsonString);

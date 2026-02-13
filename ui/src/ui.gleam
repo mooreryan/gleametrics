@@ -1,14 +1,16 @@
-import gleam/int
+import gleam/dynamic/decode
 import gleam/json
+import gleam/list
 import lustre
 import lustre/attribute
 import lustre/effect
 import lustre/element.{type Element}
 import lustre/element/html
-import lustre/event
+import shared
 
-pub fn main() {
-  let app = lustre.application(init, update, view)
+pub fn main(downloads_json_string: String) {
+  let app =
+    lustre.application(fn(_) { init(downloads_json_string) }, update, view)
   let assert Ok(_) = lustre.start(app, "#app", Nil)
 
   Nil
@@ -17,35 +19,29 @@ pub fn main() {
 // Model ---------------------------------------------------------------------
 
 type Model {
-  Model(package_downloads: List(Package))
+  Model(hex_packages: List(shared.HexPackageOutput))
 }
 
-fn init(_) -> #(Model, effect.Effect(Msg)) {
+fn init(downloads_json_string: String) -> #(Model, effect.Effect(Msg)) {
+  let hex_packages = parse_download_json(downloads_json_string)
+
   #(
-    Model(package_downloads: [
-      Package(name: "gleam_stdlib", downloads: 1_079_600),
-      Package(name: "gleam_erlang", downloads: 527_107),
-      Package(name: "gleeunit", downloads: 746_727),
-      Package(name: "gleam_otp", downloads: 405_715),
-    ]),
+    Model(hex_packages: hex_packages),
     effect.from(fn(dispatch) { dispatch(UserLoadedPage) }),
   )
 }
 
-type Package {
-  Package(name: String, downloads: Int)
-}
-
-fn package_downloads_to_json(package_downloads: Package) -> json.Json {
-  let Package(name:, downloads:) = package_downloads
-  json.object([
-    #("Name", json.string(name)),
-    #("Downloads", json.int(downloads)),
-  ])
+fn parse_download_json(json_string: String) {
+  let result =
+    json.parse(json_string, decode.list(shared.hex_package_output_decoder()))
+  case result {
+    Ok(packages) -> packages
+    Error(value) -> panic as "failed to parse package info"
+  }
 }
 
 fn package_downloads_plot(
-  entries: List(Package),
+  entries: List(shared.HexPackageOutput),
   title title: String,
 ) -> json.Json {
   json.object([
@@ -75,7 +71,10 @@ fn package_downloads_plot(
     #(
       "data",
       json.object([
-        #("values", json.array(from: entries, of: package_downloads_to_json)),
+        #(
+          "values",
+          json.array(from: entries, of: shared.hex_package_output_to_json),
+        ),
       ]),
     ),
     #("mark", json.string("bar")),
@@ -86,7 +85,7 @@ fn package_downloads_plot(
           "y",
           json.object([
             // This must match with the field name in the type
-            #("field", json.string("Name")),
+            #("field", json.string("name")),
             #("type", json.string("nominal")),
             #("sort", json.string("-x")),
             #("axis", json.object([#("title", json.bool(False))])),
@@ -96,8 +95,12 @@ fn package_downloads_plot(
           "x",
           json.object([
             // This must match with the field name in the type
-            #("field", json.string("Downloads")),
+            #("field", json.string("downloads.recent")),
             #("type", json.string("quantitative")),
+            #(
+              "axis",
+              json.object([#("title", json.string("Recent Downloads"))]),
+            ),
           ]),
         ),
       ]),
@@ -116,7 +119,7 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
     UserLoadedPage -> #(
       model,
       effect.from(fn(_) {
-        model.package_downloads
+        model.hex_packages
         |> package_downloads_plot(title: "Total Package Downloads")
         |> embed_plot
       }),
@@ -148,7 +151,8 @@ fn view(_model: Model) -> Element(Msg) {
           [
             attribute.id("plot"),
             // The paddings are to even out the vega chart
-            attribute.class("w-full min-h-48"),
+            // attribute.class("w-full min-h-48"),
+            attribute.class("w-full h-5000"),
           ],
           [],
         ),
