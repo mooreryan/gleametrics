@@ -553,14 +553,16 @@ fn view_plot(current_plot: Plot) -> Element(Msg) {
     ]),
     html.div(
       [
-        attribute.class("bg-base-300 shadow-md w-xl pl-2 pt-2 pr-4 pb-1"),
+        // The paddings are to even out the vega chart
+        attribute.class(
+          "bg-base-300 shadow-md w-sm md:w-md lg:w-2xl pl-2 pt-2 pr-4 pb-1",
+        ),
       ],
       [
         html.div(
           [
             attribute.id("plot"),
-            // The paddings are to even out the vega chart
-            // attribute.class("w-full min-h-48"),
+            // attribute.class("w-full h-5000"),
             attribute.class("w-full h-5000"),
           ],
           [],
