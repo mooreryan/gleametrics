@@ -49,12 +49,14 @@ fn parse_download_json(json_string: String) {
 type Plot {
   TotalDownloadsPlot
   LifetimeDownloadRatePlot
+  PackageAgePlot
 }
 
 fn plot_title(plot: Plot) -> String {
   case plot {
     TotalDownloadsPlot -> "Total Downloads"
     LifetimeDownloadRatePlot -> "Lifetime Download Rate"
+    PackageAgePlot -> "Package Age"
   }
 }
 
@@ -62,6 +64,7 @@ fn plot_axis_title(plot: Plot) -> String {
   case plot {
     TotalDownloadsPlot -> "Total Downloads"
     LifetimeDownloadRatePlot -> "Lifetime Download Rate (per day)"
+    PackageAgePlot -> "Package Age (days)"
   }
 }
 
@@ -69,14 +72,16 @@ fn plot_attribute_value(plot: Plot) -> String {
   case plot {
     TotalDownloadsPlot -> "total-downloads"
     LifetimeDownloadRatePlot -> "lifetime-download-rate"
+    PackageAgePlot -> "package-age"
   }
 }
 
-fn plot_from_attribute_value(attribute_value: String) -> Plot {
+fn plot_from_attribute_value(attribute_value: String) -> Result(Plot, String) {
   case attribute_value {
-    "total-downloads" -> TotalDownloadsPlot
-    "lifetime-download-rate" -> LifetimeDownloadRatePlot
-    _ -> TotalDownloadsPlot
+    "total-downloads" -> Ok(TotalDownloadsPlot)
+    "lifetime-download-rate" -> Ok(LifetimeDownloadRatePlot)
+    "package-age" -> Ok(PackageAgePlot)
+    _ -> Error("Invalid plot attribute value")
   }
 }
 
@@ -215,6 +220,106 @@ fn lifetime_download_rate_plot(
   ])
 }
 
+type PackageAge {
+  PackageAge(name: String, days: Int)
+}
+
+fn package_age_to_json(package_age: PackageAge) -> json.Json {
+  let PackageAge(name:, days:) = package_age
+  json.object([
+    #("name", json.string(name)),
+    #("days", json.int(days)),
+  ])
+}
+
+fn package_age_plot_point(package: shared.HexPackageOutput) {
+  let assert Ok(inserted_at) = package.inserted_at |> timestamp.parse_rfc3339
+
+  let download_day =
+    timestamp.from_calendar(
+      date: calendar.Date(2026, calendar.February, 12),
+      time: calendar.TimeOfDay(00, 00, 00, 0),
+      offset: calendar.utc_offset,
+    )
+
+  let package_age = timestamp.difference(inserted_at, download_day)
+  let age_seconds = duration.to_seconds(package_age)
+  // Absolute unit of day, not civil time or anything like that
+  let age_in_days = age_seconds /. 60.0 /. 60.0 /. 24.0
+
+  // For very recent packages, this age_in_days may be weird, so set it to 1.
+  let age_in_days = float.max(1.0, age_in_days) |> float.round
+
+  PackageAge(name: package.name, days: age_in_days)
+}
+
+fn package_age_plot(entries: List(PackageAge), title title: String) -> json.Json {
+  json.object([
+    #("$schema", json.string("https://vega.github.io/schema/vega-lite/v6.json")),
+    #("title", json.string(title)),
+    #("description", json.string("A lovely chart of package downloads")),
+    #("width", json.string("container")),
+    #("height", json.string("container")),
+    #(
+      "config",
+      json.object([
+        #(
+          "title",
+          json.object([
+            #("fontSize", json.int(20)),
+          ]),
+        ),
+        #(
+          "axis",
+          json.object([
+            #("titleFontSize", json.int(16)),
+            #("labelFontSize", json.int(14)),
+          ]),
+        ),
+      ]),
+    ),
+    #(
+      "data",
+      json.object([
+        #("values", json.array(from: entries, of: package_age_to_json)),
+      ]),
+    ),
+    #(
+      "mark",
+      json.object([#("type", json.string("bar")), #("tooltip", json.bool(True))]),
+    ),
+    #(
+      "encoding",
+      json.object([
+        #(
+          "y",
+          json.object([
+            // This must match with the field name in the type
+            #("field", json.string("name")),
+            #("type", json.string("nominal")),
+            #("sort", json.string("-x")),
+            #("axis", json.object([#("title", json.bool(False))])),
+          ]),
+        ),
+        #(
+          "x",
+          json.object([
+            // This must match with the field name in the type
+            #("field", json.string("days")),
+            #("type", json.string("quantitative")),
+            #(
+              "axis",
+              json.object([
+                #("title", json.string(plot_axis_title(PackageAgePlot))),
+              ]),
+            ),
+          ]),
+        ),
+      ]),
+    ),
+  ])
+}
+
 fn total_downloads_plot(
   entries: List(shared.HexPackageOutput),
   title title: String,
@@ -300,14 +405,18 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
     UserLoadedPage -> #(model, embed_total_downloads_plot(model.hex_packages))
 
     UserChangedPlot(plot_attribute_value) -> {
-      let plot = plot_from_attribute_value(plot_attribute_value)
+      // TODO: handle the error!
+      let assert Ok(plot) = plot_from_attribute_value(plot_attribute_value)
 
       let model = Model(..model, current_plot: plot)
 
       let effect = case plot {
         TotalDownloadsPlot -> embed_total_downloads_plot(model.hex_packages)
+
         LifetimeDownloadRatePlot ->
           embed_lifetime_download_rate_plot(model.hex_packages)
+
+        PackageAgePlot -> embed_package_age_plot(model.hex_packages)
       }
 
       #(model, effect)
@@ -335,6 +444,16 @@ fn embed_lifetime_download_rate_plot(
   |> embed_plot
 }
 
+fn embed_package_age_plot(
+  hex_packages: List(shared.HexPackageOutput),
+) -> effect.Effect(a) {
+  use _ <- effect.from
+  hex_packages
+  |> list.map(package_age_plot_point)
+  |> package_age_plot(title: plot_title(PackageAgePlot))
+  |> embed_plot
+}
+
 @external(javascript, "./ui_ffi.mjs", "vega_embed")
 fn vega_embed(id: String, vega_lite_spec: json.Json) -> Nil
 
@@ -345,7 +464,7 @@ fn embed_plot(vega_lite_spec: json.Json) -> Nil {
 // View ----------------------------------------------------------------------
 
 fn view(model: Model) -> Element(Msg) {
-  html.div([], [
+  html.div([attribute.class("py-2")], [
     html.h1([attribute.class("text-2xl pb-2")], [html.text("Gleametrics")]),
     html.div([attribute.class("pb-2")], [
       html.fieldset([attribute.class("fieldset")], [
@@ -366,6 +485,10 @@ fn view(model: Model) -> Element(Msg) {
             ),
             plot_html_option(
               LifetimeDownloadRatePlot,
+              currently_selected_plot: model.current_plot,
+            ),
+            plot_html_option(
+              PackageAgePlot,
               currently_selected_plot: model.current_plot,
             ),
           ],
