@@ -27,7 +27,7 @@ pub fn main() -> Nil {
   Nil
 }
 
-fn fetch_stdlib() -> Result(shared.HexPackage, json.DecodeError) {
+fn fetch_stdlib() -> Result(shared.HexPackageOut, json.DecodeError) {
   process.sleep(100)
   io.println_error("fetching stdlib")
 
@@ -49,17 +49,21 @@ fn fetch_stdlib() -> Result(shared.HexPackage, json.DecodeError) {
   }
     as "the api request failed"
 
-  shared.decode_hex_package(body)
+  use hex_package_in <- result.map(json.parse(
+    body,
+    shared.hex_package_in_decoder(),
+  ))
+  shared.hex_package_out_from_hex_package_in(hex_package_in)
 }
 
-fn fetch_packages() {
+fn fetch_packages() -> Result(List(shared.HexPackageOut), json.DecodeError) {
   do_fetch_packages(1, [])
 }
 
 fn do_fetch_packages(
   page: Int,
-  packages: List(List(shared.HexPackage)),
-) -> Result(List(shared.HexPackage), json.DecodeError) {
+  packages: List(List(shared.HexPackageOut)),
+) -> Result(List(shared.HexPackageOut), json.DecodeError) {
   process.sleep(100)
   io.println_error("fetching page " <> int.to_string(page))
 
@@ -86,13 +90,17 @@ fn do_fetch_packages(
   }
     as "the api request failed"
 
-  case shared.decode_hex_packages(body) {
+  case shared.decode_hex_packages_in(body) {
     Ok([]) -> packages |> list.reverse |> list.flatten |> Ok
-    Ok(new_packages) -> do_fetch_packages(page + 1, [new_packages, ..packages])
-    Error(error) as x -> {
+    Ok(new_packages) -> {
+      let new_packages =
+        list.map(new_packages, shared.hex_package_out_from_hex_package_in)
+      do_fetch_packages(page + 1, [new_packages, ..packages])
+    }
+    Error(error) -> {
       io.println_error(body)
       error |> echo
-      x
+      Error(error)
     }
   }
 }

@@ -122,7 +122,7 @@ fn lifetime_download_rate_plot_point_to_json(
 }
 
 fn lifetime_download_rate_plot_point(
-  package: shared.HexPackage,
+  package: shared.HexPackageOut,
 ) -> LiftetimeDownloadRate {
   let assert Ok(inserted_at) = package.inserted_at |> timestamp.parse_rfc3339
 
@@ -142,7 +142,7 @@ fn lifetime_download_rate_plot_point(
   let age_in_days = float.max(1.0, age_in_days)
 
   let downloads_per_day =
-    { int.to_float(package.downloads.all) /. age_in_days }
+    { int.to_float(package.all_downloads) /. age_in_days }
     |> float.to_precision(2)
 
   LifetimeDownloadRate(
@@ -242,7 +242,7 @@ fn package_age_to_json(package_age: PackageAge) -> json.Json {
   ])
 }
 
-fn package_age_plot_point(package: shared.HexPackage) -> PackageAge {
+fn package_age_plot_point(package: shared.HexPackageOut) -> PackageAge {
   let assert Ok(inserted_at) = package.inserted_at |> timestamp.parse_rfc3339
 
   let download_day =
@@ -331,7 +331,7 @@ fn package_age_plot(entries: List(PackageAge), title title: String) -> json.Json
 }
 
 fn total_downloads_plot(
-  entries: List(shared.HexPackage),
+  entries: List(shared.HexPackageOut),
   title title: String,
 ) -> json.Json {
   json.object([
@@ -361,7 +361,10 @@ fn total_downloads_plot(
     #(
       "data",
       json.object([
-        #("values", json.array(from: entries, of: shared.hex_package_to_json)),
+        #(
+          "values",
+          json.array(from: entries, of: shared.hex_package_out_to_json),
+        ),
       ]),
     ),
     #(
@@ -385,7 +388,7 @@ fn total_downloads_plot(
           "x",
           json.object([
             // This must match with the field name in the type
-            #("field", json.string("downloads.all")),
+            #("field", json.string("all_downloads")),
             #("type", json.string("quantitative")),
             #(
               "axis",
@@ -401,7 +404,7 @@ fn total_downloads_plot(
 }
 
 fn recent_downloads_plot(
-  entries: List(shared.HexPackage),
+  entries: List(shared.HexPackageOut),
   title title: String,
 ) -> json.Json {
   json.object([
@@ -431,7 +434,10 @@ fn recent_downloads_plot(
     #(
       "data",
       json.object([
-        #("values", json.array(from: entries, of: shared.hex_package_to_json)),
+        #(
+          "values",
+          json.array(from: entries, of: shared.hex_package_out_to_json),
+        ),
       ]),
     ),
     #(
@@ -455,7 +461,7 @@ fn recent_downloads_plot(
           "x",
           json.object([
             // This must match with the field name in the type
-            #("field", json.string("downloads.recent")),
+            #("field", json.string("recent_downloads")),
             #("type", json.string("quantitative")),
             #(
               "axis",
@@ -512,7 +518,7 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
 }
 
 fn embed_recent_downloads_plot(
-  hex_packages: List(shared.HexPackage),
+  hex_packages: List(shared.HexPackageOut),
 ) -> effect.Effect(a) {
   effect.from(fn(_) {
     hex_packages
@@ -522,7 +528,7 @@ fn embed_recent_downloads_plot(
 }
 
 fn embed_total_downloads_plot(
-  hex_packages: List(shared.HexPackage),
+  hex_packages: List(shared.HexPackageOut),
 ) -> effect.Effect(a) {
   effect.from(fn(_) {
     hex_packages
@@ -532,7 +538,7 @@ fn embed_total_downloads_plot(
 }
 
 fn embed_lifetime_download_rate_plot(
-  hex_packages: List(shared.HexPackage),
+  hex_packages: List(shared.HexPackageOut),
 ) -> effect.Effect(a) {
   use _ <- effect.from
   hex_packages
@@ -542,7 +548,7 @@ fn embed_lifetime_download_rate_plot(
 }
 
 fn embed_package_age_plot(
-  hex_packages: List(shared.HexPackage),
+  hex_packages: List(shared.HexPackageOut),
 ) -> effect.Effect(a) {
   use _ <- effect.from
   hex_packages
@@ -601,8 +607,8 @@ fn view_stats(hex_packages_snapshot: shared.HexPackagesSnapshot) -> Element(Msg)
     hex_packages_snapshot.packages
     |> list.fold(
       from: 0,
-      with: fn(total_downloads: Int, package: shared.HexPackage) {
-        total_downloads + package.downloads.all
+      with: fn(total_downloads: Int, package: shared.HexPackageOut) {
+        total_downloads + package.all_downloads
       },
     )
 
