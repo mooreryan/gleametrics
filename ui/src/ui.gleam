@@ -15,7 +15,7 @@ import lustre/element/html
 import lustre/event
 import shared
 
-pub fn main(downloads_json_string: String) {
+pub fn main(downloads_json_string: String) -> Nil {
   let app =
     lustre.application(fn(_) { init(downloads_json_string) }, update, view)
   let assert Ok(_) = lustre.start(app, "#app", Nil)
@@ -41,7 +41,7 @@ fn init(downloads_json_string: String) -> #(Model, effect.Effect(Msg)) {
   )
 }
 
-fn parse_download_json(json_string: String) {
+fn parse_download_json(json_string: String) -> shared.HexPackagesSnapshot {
   let result = json.parse(json_string, shared.hex_package_snapshot_decoder())
   case result {
     Ok(packages) -> packages
@@ -116,7 +116,9 @@ fn lifetime_download_rate_plot_point_to_json(
   ])
 }
 
-fn lifetime_download_rate_plot_point(package: shared.HexPackage) {
+fn lifetime_download_rate_plot_point(
+  package: shared.HexPackage,
+) -> LiftetimeDownloadRate {
   let assert Ok(inserted_at) = package.inserted_at |> timestamp.parse_rfc3339
 
   let download_day =
@@ -235,7 +237,7 @@ fn package_age_to_json(package_age: PackageAge) -> json.Json {
   ])
 }
 
-fn package_age_plot_point(package: shared.HexPackage) {
+fn package_age_plot_point(package: shared.HexPackage) -> PackageAge {
   let assert Ok(inserted_at) = package.inserted_at |> timestamp.parse_rfc3339
 
   let download_day =
@@ -472,18 +474,59 @@ fn embed_plot(vega_lite_spec: json.Json) -> Nil {
 
 fn view(model: Model) -> Element(Msg) {
   html.div([attribute.class("py-2")], [
-    html.h1([attribute.class("text-2xl pb-2")], [html.text("Gleametrics")]),
-    html.p([attribute.class("text-xs")], [
-      html.text(
-        "Data fetched on: "
-        <> data_fetched_at_string(model.hex_packages_snapshot.fetched_at),
-      ),
+    view_title(),
+    view_stats(total_packages: 100, total_downloads: 100_000),
+    view_data_fetched_on(model.hex_packages_snapshot.fetched_at),
+    view_plot(model.current_plot),
+  ])
+}
+
+fn view_title() {
+  html.h1([attribute.class("text-4xl pb-2 text-bold")], [
+    html.text("Gleametrics"),
+  ])
+}
+
+fn view_data_fetched_on(fetched_at: String) -> Element(Msg) {
+  html.div([attribute.class("py-2")], [
+    html.p([attribute.class("text-xs opacity-50")], [
+      html.text("Data fetched on: " <> data_fetched_at_string(fetched_at)),
     ]),
+  ])
+}
+
+fn view_stats(
+  total_packages total_packages: Int,
+  total_downloads total_downloads: Int,
+) -> Element(Msg) {
+  html.div([attribute.class("stats my-4")], [
+    html.div([attribute.class("stat")], [
+      html.div([attribute.class("stat-title")], [
+        html.text("Packages"),
+      ]),
+      html.div([attribute.class("stat-value")], [
+        html.text(int.to_string(total_packages)),
+      ]),
+    ]),
+    html.div([attribute.class("stat")], [
+      html.div([attribute.class("stat-title")], [html.text("Downloads")]),
+      html.div([attribute.class("stat-value")], [
+        html.text(int.to_string(total_downloads)),
+      ]),
+    ]),
+  ])
+}
+
+fn view_plot(current_plot: Plot) -> Element(Msg) {
+  html.div([], [
     html.div([attribute.class("py-2")], [
       html.fieldset([attribute.class("fieldset")], [
-        html.label([attribute.for("plot-select"), attribute.class("label")], [
-          html.text("Select Plot"),
-        ]),
+        html.label(
+          [attribute.for("plot-select"), attribute.class("label hidden")],
+          [
+            html.text("Select Plot"),
+          ],
+        ),
         html.select(
           [
             attribute.id("plot-select"),
@@ -494,15 +537,15 @@ fn view(model: Model) -> Element(Msg) {
           [
             plot_html_option(
               TotalDownloadsPlot,
-              currently_selected_plot: model.current_plot,
+              currently_selected_plot: current_plot,
             ),
             plot_html_option(
               LifetimeDownloadRatePlot,
-              currently_selected_plot: model.current_plot,
+              currently_selected_plot: current_plot,
             ),
             plot_html_option(
               PackageAgePlot,
-              currently_selected_plot: model.current_plot,
+              currently_selected_plot: current_plot,
             ),
           ],
         ),
@@ -510,9 +553,7 @@ fn view(model: Model) -> Element(Msg) {
     ]),
     html.div(
       [
-        attribute.class(
-          "flex justify-center bg-base-300 shadow-md w-xl pl-2 pt-2 pr-4 pb-1",
-        ),
+        attribute.class("bg-base-300 shadow-md w-xl pl-2 pt-2 pr-4 pb-1"),
       ],
       [
         html.div(
