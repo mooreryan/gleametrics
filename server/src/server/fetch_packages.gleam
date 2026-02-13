@@ -1,5 +1,4 @@
 import envoy
-import gleam/dynamic/decode
 import gleam/erlang/process
 import gleam/http/request
 import gleam/httpc
@@ -16,34 +15,15 @@ pub fn main() -> Nil {
 
   let gleam_packages = [stdlib_package, ..hex_packages]
 
-  // TODO: remove this
-  let normalized_downloads =
-    list.map(gleam_packages, fn(hex_package) {
-      shared.normalize_downloads(
-        hex_package.downloads,
-        by: stdlib_package.downloads,
-      )
-    })
-
-  list.zip(gleam_packages, normalized_downloads)
-  |> list.map(fn(x) {
-    let #(hex_package, normalized_downloads) = x
-    shared.HexPackageOutput(
-      name: hex_package.name,
-      downloads: hex_package.downloads,
-      normalized_downloads: normalized_downloads,
-      inserted_at: hex_package.inserted_at,
-      updated_at: hex_package.updated_at,
-    )
-  })
-  |> json.array(shared.hex_package_output_to_json)
+  gleam_packages
+  |> json.array(shared.hex_package_to_json)
   |> json.to_string()
   |> io.println
 
   Nil
 }
 
-fn fetch_stdlib() -> Result(HexPackage, json.DecodeError) {
+fn fetch_stdlib() -> Result(shared.HexPackage, json.DecodeError) {
   process.sleep(100)
   io.println_error("fetching stdlib")
 
@@ -65,7 +45,7 @@ fn fetch_stdlib() -> Result(HexPackage, json.DecodeError) {
   }
     as "the api request failed"
 
-  decode_hex_package(body)
+  shared.decode_hex_package(body)
 }
 
 fn fetch_packages() {
@@ -74,8 +54,8 @@ fn fetch_packages() {
 
 fn do_fetch_packages(
   page: Int,
-  packages: List(List(HexPackage)),
-) -> Result(List(HexPackage), json.DecodeError) {
+  packages: List(List(shared.HexPackage)),
+) -> Result(List(shared.HexPackage), json.DecodeError) {
   process.sleep(100)
   io.println_error("fetching page " <> int.to_string(page))
 
@@ -102,7 +82,7 @@ fn do_fetch_packages(
   }
     as "the api request failed"
 
-  case decode_hex_packages(body) {
+  case shared.decode_hex_packages(body) {
     Ok([]) -> packages |> list.reverse |> list.flatten |> Ok
     Ok(new_packages) -> do_fetch_packages(page + 1, [new_packages, ..packages])
     Error(error) as x -> {
@@ -111,35 +91,4 @@ fn do_fetch_packages(
       x
     }
   }
-}
-
-type HexPackage {
-  HexPackage(
-    name: String,
-    downloads: shared.Downloads,
-    inserted_at: String,
-    updated_at: String,
-  )
-}
-
-fn hex_package_decoder() -> decode.Decoder(HexPackage) {
-  use name <- decode.field("name", decode.string)
-  use inserted_at <- decode.field("inserted_at", decode.string)
-  use updated_at <- decode.field("updated_at", decode.string)
-  use downloads <- decode.field("downloads", shared.downloads_decoder())
-  decode.success(HexPackage(name:, updated_at:, inserted_at:, downloads:))
-}
-
-fn hex_packages_decoder() -> decode.Decoder(List(HexPackage)) {
-  decode.list(hex_package_decoder())
-}
-
-fn decode_hex_packages(
-  json: String,
-) -> Result(List(HexPackage), json.DecodeError) {
-  json.parse(json, hex_packages_decoder())
-}
-
-fn decode_hex_package(json: String) -> Result(HexPackage, json.DecodeError) {
-  json.parse(json, hex_package_decoder())
 }

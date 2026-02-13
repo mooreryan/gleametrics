@@ -14,3 +14,11 @@ gleam_build_watch:
         (cd server && gleam build) && \
         (cd ui && gleam build)
     done)
+
+fetch_package_download_info:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    cd server
+
+    gleam run -m server/fetch_packages > ../ui/data/downloads.json

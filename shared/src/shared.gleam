@@ -2,54 +2,45 @@ import gleam/dynamic/decode
 import gleam/int
 import gleam/json
 
-pub type HexPackageOutput {
-  HexPackageOutput(
+pub type HexPackage {
+  HexPackage(
     name: String,
     downloads: Downloads,
-    normalized_downloads: NormalizedDownloads,
     inserted_at: String,
     updated_at: String,
   )
 }
 
-pub fn hex_package_output_decoder() -> decode.Decoder(HexPackageOutput) {
-  use name <- decode.field("name", decode.string)
-  use downloads <- decode.field("downloads", downloads_decoder())
-  use normalized_downloads <- decode.field(
-    "normalized_downloads",
-    normalized_downloads_decoder(),
-  )
-  use inserted_at <- decode.field("inserted_at", decode.string)
-  use updated_at <- decode.field("updated_at", decode.string)
-  decode.success(HexPackageOutput(
-    name:,
-    downloads:,
-    normalized_downloads:,
-    inserted_at:,
-    updated_at:,
-  ))
-}
-
-pub fn hex_package_output_to_json(
-  hex_package_output: HexPackageOutput,
-) -> json.Json {
-  let HexPackageOutput(
-    name:,
-    downloads:,
-    normalized_downloads:,
-    inserted_at:,
-    updated_at:,
-  ) = hex_package_output
+pub fn hex_package_to_json(hex_package: HexPackage) -> json.Json {
+  let HexPackage(name:, downloads:, inserted_at:, updated_at:) = hex_package
   json.object([
     #("name", json.string(name)),
     #("downloads", downloads_to_json(downloads)),
-    #(
-      "normalized_downloads",
-      normalized_downloads_to_json(normalized_downloads),
-    ),
     #("inserted_at", json.string(inserted_at)),
     #("updated_at", json.string(updated_at)),
   ])
+}
+
+pub fn hex_package_decoder() -> decode.Decoder(HexPackage) {
+  use name <- decode.field("name", decode.string)
+  use inserted_at <- decode.field("inserted_at", decode.string)
+  use updated_at <- decode.field("updated_at", decode.string)
+  use downloads <- decode.field("downloads", downloads_decoder())
+  decode.success(HexPackage(name:, updated_at:, inserted_at:, downloads:))
+}
+
+fn hex_packages_decoder() -> decode.Decoder(List(HexPackage)) {
+  decode.list(hex_package_decoder())
+}
+
+pub fn decode_hex_packages(
+  json: String,
+) -> Result(List(HexPackage), json.DecodeError) {
+  json.parse(json, hex_packages_decoder())
+}
+
+pub fn decode_hex_package(json: String) -> Result(HexPackage, json.DecodeError) {
+  json.parse(json, hex_package_decoder())
 }
 
 pub type Downloads {

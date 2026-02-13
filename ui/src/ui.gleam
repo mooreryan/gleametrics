@@ -25,7 +25,7 @@ pub fn main(downloads_json_string: String) {
 // Model ---------------------------------------------------------------------
 
 type Model {
-  Model(hex_packages: List(shared.HexPackageOutput), current_plot: Plot)
+  Model(hex_packages: List(shared.HexPackage), current_plot: Plot)
 }
 
 fn init(downloads_json_string: String) -> #(Model, effect.Effect(Msg)) {
@@ -39,7 +39,7 @@ fn init(downloads_json_string: String) -> #(Model, effect.Effect(Msg)) {
 
 fn parse_download_json(json_string: String) {
   let result =
-    json.parse(json_string, decode.list(shared.hex_package_output_decoder()))
+    json.parse(json_string, decode.list(shared.hex_package_decoder()))
   case result {
     Ok(packages) -> packages
     Error(value) -> panic as "failed to parse package info"
@@ -113,7 +113,7 @@ fn lifetime_download_rate_plot_point_to_json(
   ])
 }
 
-fn lifetime_download_rate_plot_point(package: shared.HexPackageOutput) {
+fn lifetime_download_rate_plot_point(package: shared.HexPackage) {
   let assert Ok(inserted_at) = package.inserted_at |> timestamp.parse_rfc3339
 
   let download_day =
@@ -232,7 +232,7 @@ fn package_age_to_json(package_age: PackageAge) -> json.Json {
   ])
 }
 
-fn package_age_plot_point(package: shared.HexPackageOutput) {
+fn package_age_plot_point(package: shared.HexPackage) {
   let assert Ok(inserted_at) = package.inserted_at |> timestamp.parse_rfc3339
 
   let download_day =
@@ -321,7 +321,7 @@ fn package_age_plot(entries: List(PackageAge), title title: String) -> json.Json
 }
 
 fn total_downloads_plot(
-  entries: List(shared.HexPackageOutput),
+  entries: List(shared.HexPackage),
   title title: String,
 ) -> json.Json {
   json.object([
@@ -351,10 +351,7 @@ fn total_downloads_plot(
     #(
       "data",
       json.object([
-        #(
-          "values",
-          json.array(from: entries, of: shared.hex_package_output_to_json),
-        ),
+        #("values", json.array(from: entries, of: shared.hex_package_to_json)),
       ]),
     ),
     #(
@@ -425,7 +422,7 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
 }
 
 fn embed_total_downloads_plot(
-  hex_packages: List(shared.HexPackageOutput),
+  hex_packages: List(shared.HexPackage),
 ) -> effect.Effect(a) {
   effect.from(fn(_) {
     hex_packages
@@ -435,7 +432,7 @@ fn embed_total_downloads_plot(
 }
 
 fn embed_lifetime_download_rate_plot(
-  hex_packages: List(shared.HexPackageOutput),
+  hex_packages: List(shared.HexPackage),
 ) -> effect.Effect(a) {
   use _ <- effect.from
   hex_packages
@@ -445,7 +442,7 @@ fn embed_lifetime_download_rate_plot(
 }
 
 fn embed_package_age_plot(
-  hex_packages: List(shared.HexPackageOutput),
+  hex_packages: List(shared.HexPackage),
 ) -> effect.Effect(a) {
   use _ <- effect.from
   hex_packages
