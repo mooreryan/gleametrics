@@ -475,8 +475,8 @@ fn embed_plot(vega_lite_spec: json.Json) -> Nil {
 fn view(model: Model) -> Element(Msg) {
   html.div([attribute.class("py-2")], [
     view_title(),
-    view_stats(total_packages: 100, total_downloads: 100_000),
-    view_data_fetched_on(model.hex_packages_snapshot.fetched_at),
+    view_info(model.hex_packages_snapshot.fetched_at),
+    view_stats(model.hex_packages_snapshot),
     view_plot(model.current_plot),
   ])
 }
@@ -487,34 +487,81 @@ fn view_title() {
   ])
 }
 
+fn view_info(fetched_at) {
+  html.div([], [
+    html.p([], [
+      html.text("Package download metrics for "),
+      html.a([attribute.href("https://gleam.run"), attribute.class("link")], [
+        html.text("Gleam"),
+      ]),
+      html.text("."),
+    ]),
+    view_data_fetched_on(fetched_at),
+  ])
+}
+
 fn view_data_fetched_on(fetched_at: String) -> Element(Msg) {
-  html.div([attribute.class("py-2")], [
+  html.div([], [
     html.p([attribute.class("text-xs opacity-50")], [
       html.text("Data fetched on: " <> data_fetched_at_string(fetched_at)),
     ]),
   ])
 }
 
-fn view_stats(
-  total_packages total_packages: Int,
-  total_downloads total_downloads: Int,
-) -> Element(Msg) {
+fn view_stats(hex_packages_snapshot: shared.HexPackagesSnapshot) -> Element(Msg) {
+  let total_downloads =
+    hex_packages_snapshot.packages
+    |> list.fold(
+      from: 0,
+      with: fn(total_downloads: Int, package: shared.HexPackage) {
+        total_downloads + package.downloads.all
+      },
+    )
+
+  let total_packages = hex_packages_snapshot.packages |> list.length
+
   html.div([attribute.class("stats my-4")], [
     html.div([attribute.class("stat")], [
       html.div([attribute.class("stat-title")], [
         html.text("Packages"),
       ]),
       html.div([attribute.class("stat-value")], [
-        html.text(int.to_string(total_packages)),
+        html.text(format_with_commas(total_packages)),
       ]),
     ]),
     html.div([attribute.class("stat")], [
-      html.div([attribute.class("stat-title")], [html.text("Downloads")]),
+      html.div([attribute.class("stat-title")], [html.text("Total Downloads")]),
       html.div([attribute.class("stat-value")], [
-        html.text(int.to_string(total_downloads)),
+        html.text(format_with_commas(total_downloads)),
       ]),
     ]),
   ])
+}
+
+@internal
+pub fn format_with_commas(n: Int) -> String {
+  let str = int.to_string(n)
+
+  case n < 0 {
+    True -> "-" <> format_digits(string.drop_start(str, 1))
+    False -> format_digits(str)
+  }
+}
+
+fn format_digits(str: String) -> String {
+  str
+  |> string.to_graphemes
+  |> list.reverse
+  |> group_by_threes
+  |> list.reverse
+  |> string.join("")
+}
+
+fn group_by_threes(digits: List(String)) -> List(String) {
+  case digits {
+    [] | [_] | [_, _] | [_, _, _] -> digits
+    [a, b, c, ..rest] -> [a, b, c, ",", ..group_by_threes(rest)]
+  }
 }
 
 fn view_plot(current_plot: Plot) -> Element(Msg) {
