@@ -1,2 +1,25 @@
 @import "tailwindcss";
 @plugin "daisyui";
+
+svg {
+    background-color: var(--color-base-300) !important;
+}
+
+svg text {
+    fill: var(--color-base-content);
+}
+
+/*#plot svg g.mark-rect.role-mark.marks {
+    fill: bisque !important;
+}*/
+
+svg g.mark-rect.role-mark.marks path {
+    fill: var(--color-primary);
+}
+
+svg g.mark-rule.role-axis-grid line,
+svg g.mark-rule.role-axis-tick line,
+svg g.mark-rule.role-axis-domain line,
+svg path.background {
+    stroke: color-mix(in srgb, var(--color-base-content), gray 50%);
+}
