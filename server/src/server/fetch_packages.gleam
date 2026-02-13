@@ -7,16 +7,20 @@ import gleam/io
 import gleam/json
 import gleam/list
 import gleam/result
+import gleam/time/calendar
+import gleam/time/timestamp
 import shared
 
 pub fn main() -> Nil {
+  let now = timestamp.system_time() |> timestamp.to_rfc3339(calendar.utc_offset)
+
   let assert Ok(stdlib_package) = fetch_stdlib() as "failed to fetch stdlib"
   let assert Ok(hex_packages) = fetch_packages() as "failed to fetch packages"
 
   let gleam_packages = [stdlib_package, ..hex_packages]
 
-  gleam_packages
-  |> json.array(shared.hex_package_to_json)
+  shared.HexPackagesSnapshot(fetched_at: now, packages: gleam_packages)
+  |> shared.hex_package_snapshot_to_json
   |> json.to_string()
   |> io.println
 

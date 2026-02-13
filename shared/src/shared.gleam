@@ -2,6 +2,26 @@ import gleam/dynamic/decode
 import gleam/int
 import gleam/json
 
+pub type HexPackagesSnapshot {
+  HexPackagesSnapshot(fetched_at: String, packages: List(HexPackage))
+}
+
+pub fn hex_package_snapshot_decoder() -> decode.Decoder(HexPackagesSnapshot) {
+  use fetched_at <- decode.field("fetched_at", decode.string)
+  use packages <- decode.field("packages", decode.list(hex_package_decoder()))
+  decode.success(HexPackagesSnapshot(fetched_at:, packages:))
+}
+
+pub fn hex_package_snapshot_to_json(
+  hex_package_snapshot: HexPackagesSnapshot,
+) -> json.Json {
+  let HexPackagesSnapshot(fetched_at:, packages:) = hex_package_snapshot
+  json.object([
+    #("fetched_at", json.string(fetched_at)),
+    #("packages", json.array(packages, hex_package_to_json)),
+  ])
+}
+
 pub type HexPackage {
   HexPackage(
     name: String,

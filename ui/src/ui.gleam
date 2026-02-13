@@ -3,6 +3,7 @@ import gleam/float
 import gleam/int
 import gleam/json
 import gleam/list
+import gleam/string
 import gleam/time/calendar
 import gleam/time/duration
 import gleam/time/timestamp
@@ -25,21 +26,23 @@ pub fn main(downloads_json_string: String) {
 // Model ---------------------------------------------------------------------
 
 type Model {
-  Model(hex_packages: List(shared.HexPackage), current_plot: Plot)
+  Model(hex_packages_snapshot: shared.HexPackagesSnapshot, current_plot: Plot)
 }
 
 fn init(downloads_json_string: String) -> #(Model, effect.Effect(Msg)) {
-  let hex_packages = parse_download_json(downloads_json_string)
+  let hex_packages_snapshot = parse_download_json(downloads_json_string)
 
   #(
-    Model(hex_packages: hex_packages, current_plot: TotalDownloadsPlot),
+    Model(
+      hex_packages_snapshot: hex_packages_snapshot,
+      current_plot: TotalDownloadsPlot,
+    ),
     effect.from(fn(dispatch) { dispatch(UserLoadedPage) }),
   )
 }
 
 fn parse_download_json(json_string: String) {
-  let result =
-    json.parse(json_string, decode.list(shared.hex_package_decoder()))
+  let result = json.parse(json_string, shared.hex_package_snapshot_decoder())
   case result {
     Ok(packages) -> packages
     Error(value) -> panic as "failed to parse package info"
@@ -399,7 +402,10 @@ type Msg {
 
 fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
   case msg {
-    UserLoadedPage -> #(model, embed_total_downloads_plot(model.hex_packages))
+    UserLoadedPage -> #(
+      model,
+      embed_total_downloads_plot(model.hex_packages_snapshot.packages),
+    )
 
     UserChangedPlot(plot_attribute_value) -> {
       // TODO: handle the error!
@@ -408,12 +414,16 @@ fn update(model: Model, msg: Msg) -> #(Model, effect.Effect(Msg)) {
       let model = Model(..model, current_plot: plot)
 
       let effect = case plot {
-        TotalDownloadsPlot -> embed_total_downloads_plot(model.hex_packages)
+        TotalDownloadsPlot ->
+          embed_total_downloads_plot(model.hex_packages_snapshot.packages)
 
         LifetimeDownloadRatePlot ->
-          embed_lifetime_download_rate_plot(model.hex_packages)
+          embed_lifetime_download_rate_plot(
+            model.hex_packages_snapshot.packages,
+          )
 
-        PackageAgePlot -> embed_package_age_plot(model.hex_packages)
+        PackageAgePlot ->
+          embed_package_age_plot(model.hex_packages_snapshot.packages)
       }
 
       #(model, effect)
@@ -463,7 +473,13 @@ fn embed_plot(vega_lite_spec: json.Json) -> Nil {
 fn view(model: Model) -> Element(Msg) {
   html.div([attribute.class("py-2")], [
     html.h1([attribute.class("text-2xl pb-2")], [html.text("Gleametrics")]),
-    html.div([attribute.class("pb-2")], [
+    html.p([attribute.class("text-xs")], [
+      html.text(
+        "Data fetched on: "
+        <> data_fetched_at_string(model.hex_packages_snapshot.fetched_at),
+      ),
+    ]),
+    html.div([attribute.class("py-2")], [
       html.fieldset([attribute.class("fieldset")], [
         html.label([attribute.for("plot-select"), attribute.class("label")], [
           html.text("Select Plot"),
@@ -511,4 +527,25 @@ fn view(model: Model) -> Element(Msg) {
       ],
     ),
   ])
+}
+
+fn data_fetched_at_string(timestamp_string: String) -> String {
+  let to_string = fn(n) {
+    n |> int.to_string |> string.pad_start(to: 2, with: "0")
+  }
+
+  case timestamp.parse_rfc3339(timestamp_string) {
+    Error(Nil) -> "unknown"
+    Ok(ts) -> {
+      let x = timestamp.to_calendar(ts, calendar.utc_offset)
+      let #(date, _) = x
+      let calendar.Date(year:, month:, day:) = date
+
+      int.to_string(year)
+      <> "-"
+      <> to_string(calendar.month_to_int(month))
+      <> "-"
+      <> to_string(day)
+    }
+  }
 }
