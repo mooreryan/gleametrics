@@ -21,4 +21,11 @@ fetch_package_download_info:
 
     cd server
 
-    gleam run -m server/fetch_packages > ../ui/data/downloads.json
+    out="../ui/data/downloads.json"
+
+    # Backup existing file if present
+    if [[ -f "$out" ]]; then
+        cp -p "$out" "$out.bak"
+    fi
+
+    gleam run -m server/fetch_packages > "$out"
