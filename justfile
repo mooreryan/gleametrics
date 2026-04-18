@@ -1,6 +1,14 @@
 ui_vite_dev:
     cd ui && npm run dev
 
+gleam_build_all:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    cd shared && gleam build
+    cd ../server && gleam build
+    cd ../ui && gleam build
+
 # Watch all Gleam projects and rebuild all on any change
 gleam_build_watch:
     #!/usr/bin/env bash

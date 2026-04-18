@@ -1,4 +1,3 @@
-import gleam/dynamic/decode
 import gleam/float
 import gleam/int
 import gleam/json
@@ -45,7 +44,7 @@ fn parse_download_json(json_string: String) -> shared.HexPackagesSnapshot {
   let result = json.parse(json_string, shared.hex_package_snapshot_decoder())
   case result {
     Ok(packages) -> packages
-    Error(value) -> panic as "failed to parse package info"
+    Error(_value) -> panic as "failed to parse package info"
   }
 }
 
