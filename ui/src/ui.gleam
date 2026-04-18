@@ -127,7 +127,7 @@ fn lifetime_download_rate_plot_point(
 
   let download_day =
     timestamp.from_calendar(
-      date: calendar.Date(2026, calendar.February, 12),
+      date: calendar.Date(2026, calendar.April, 18),
       time: calendar.TimeOfDay(00, 00, 00, 0),
       offset: calendar.utc_offset,
     )
